@@ -1,4 +1,5 @@
 # spATAC-Library-Size
+## Overview
 Library size has been typically regarded as a technical confounder in spATAC-seq. However, analyses indicated that library size is correlated with biology and that traditional normalization methods do not improve/may worsen the performance of downstream analyses tasks like spatial domain detection, and change biological trends in differential promoter activity.
 
 
