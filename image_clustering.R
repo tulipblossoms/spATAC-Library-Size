@@ -7,14 +7,16 @@ library(ggpubr)
 library(pheatmap)
 library(RColorBrewer)
 library(readr)
+library(Seurat)
+library(Signac)
 
 ##########spatial-ATAC-RNA-sequencing & spatial-MUX-sequencing datasets analysis##########
 #read in image (see example on mouse embryo below)
-img<-readImage("ME13_50um_50bc/ME13_50um_spatial/tissue_lowres_image.png")
+img<-readImage("ME13_50um_spatial/tissue_lowres_image.png")
 pixel_values <- channel(img,"gray")
 
 #smooth and cluster high resolution image
-sliding_window_function <- function(slide_k, cluster_num,valid_idx=NA) {
+sliding_window_function <- function(slide_k, cluster_num,valid_idx=NULL) {
   # Smoothing with mean filter
   kernel <- matrix(1, nrow = slide_k, ncol = slide_k)
   kernel <- kernel / sum(kernel)
@@ -23,17 +25,16 @@ sliding_window_function <- function(slide_k, cluster_num,valid_idx=NA) {
   pixel_vector <- as.vector(smoothed_matrix)
   set.seed(1)
   # Flatten and apply k-means clustering
-  if(!is.na(valid_idx)){
+  if(length(valid_idx)>0){
     km <- kmeans(pixel_vector[valid_idx], centers = cluster_num)
     cluster_vector <- rep(0, length(pixel_vector))
     cluster_vector[valid_idx] <- km$cluster
     cluster_matrix <- matrix(cluster_vector, nrow = nrow(smoothed_matrix), ncol = ncol(smoothed_matrix))
-    rgb_array <- array(0, dim = c(nrow(cluster_matrix), ncol(cluster_matrix), 3))
   }else{
     km <- kmeans(pixel_vector, centers = cluster_num)
     cluster_matrix <- matrix(km$cluster, nrow = nrow(smoothed_matrix), ncol = ncol(smoothed_matrix))
-  return(list(cluster_matrix=cluster_matrix))
   }
+  return(list(cluster_matrix=cluster_matrix))
 }
 
 img_cluster<-sliding_window_function(51,5)
@@ -45,7 +46,7 @@ ncol_img <- ncol(cluster_matrix)
 
 # Initialize RGB image
 rgb_array <- array(0, dim = c(nrow_img, ncol_img, 3))
-
+rgb_colors<-t(col2rgb(c("red","blue","#006400","purple","orange")))/255
 # Fill in RGB channels
 for (i in 1:5) {
   mask <- cluster_matrix == i
@@ -61,14 +62,15 @@ color_img <- Image(rgb_array, colormode = "Color")
 display(color_img, method = "raster")
 
 
-#use for 5 cluster analyses
+#use for 5 cluster analyses with background removal
 cluster_colors <- c("#000000","red","blue","#006400","purple","orange")
 
-#use for 10 cluster analyses
+#use for 10 cluster analyses with background removal
 cluster_colors<-c("black","red","blue","darkgreen","#00CED1","orange","#A65628","#F781BF", "#999999","#66C2A5","#FFD700","purple")
 custom_colors <- t(col2rgb(cluster_colors)) / 255
 
-background_remove_cluster<-sliding_window_function(51,5,which(cluster_matrix!=4))
+background_remove_cluster<-sliding_window_function(51,5,which(cluster_matrix!=3)) #can also change based on background
+cluster_matrix<-background_remove_cluster$cluster_matrix
 
 # Fill image
 for (i in 0:5) {
@@ -113,7 +115,6 @@ transposed_img_matrix<-t(downsampled_matrix)
 #mouse brain only
 downsampled_matrix<-downsampled_matrix[,ncol(downsampled_matrix):1]
 
-breaks <- 0:6
 pheatmap(
   transposed_img_matrix,
   color =cluster_colors,
@@ -130,19 +131,19 @@ clusters<-as.vector((downsampled_matrix))
 
 ###READ IN ATAC + RNA DATA + CALCULATE LIBRARY SIZE###
 
-metadata<-read.csv("spatial/tissue_positions_list.csv")
+metadata<-read.csv("ME13_50um_spatial/tissue_positions_list.csv")
 metadata<-rbind(colnames(metadata),metadata)
-metadata[1,2:6]<-c(1,0,9,11,1768)
+metadata[1,2:6]<-c(1,0,0,9,1706)
 colnames(metadata)[3:4]<-c("row","col")
 
 #RNA
-rna_spatial_exp <- fread("ME13_50um_50bc/GSM6799937_ME13_50um_matrix_merge.tsv/ME13_50um_matrix_merge.tsv")
+rna_spatial_exp <- fread("GSM6799937_ME13_50um_matrix_merge.tsv/ME13_50um_matrix_merge.tsv")
 rna_spatial_exp<-as.data.frame(rna_spatial_exp)
 rownames(rna_spatial_exp)<-rna_spatial_exp$V1
 rna_spatial_exp<-rna_spatial_exp[,2:ncol(rna_spatial_exp)]
 
 #ATAC
-atac_spatial_exp<-fread("GSM8189706_ME13_50um_3_ATAC.fragments.tsv/GSM8189706_ME13_50um_3_ATAC.fragments.tsv")
+atac_spatial_exp<-fread("GSM6801813_ME13_50um_fragments.tsv/GSM6801813_ME13_50um_fragments.tsv")
 colnames(atac_spatial_exp)[1:4]<-c("seqnames","start","end","spot")
 atac_spatial_exp$spot<-sub("*-.","",atac_spatial_exp$spot)
 cleaned_spots<-sub("*-.","",atac_spatial_exp$spot)
@@ -154,7 +155,7 @@ spot_sums<-as.data.frame(spot_sums)
 
 ##lib size pheatmap
 lib_matrix <- matrix(NA, nrow = 50, ncol = 50)
-spot_sums<-spot_sums[match(metadata$ACAAGCTAAACGTGAT,spot_sums$cleaned_spots),]
+spot_sums<-spot_sums[match(metadata$AACGTGATAACGTGAT,spot_sums$cleaned_spots),]
 
 # Assign values based on row and column indices
 for (i in seq_len(nrow(metadata))) {
@@ -171,7 +172,6 @@ pheatmap(t(log2(lib_matrix))[,ncol(lib_matrix):1],cluster_cols=FALSE,cluster_row
 
 ##violin + t-test
 libsizes<-as.vector(t(lib_matrix))
-clusters<-as.vector(downsampled_matrix)
 df<-data.frame(clusters=clusters,libsizes=libsizes)
 df$clusters<-as.factor(df$clusters)
 df<-df[which(df$clusters!=0),]
@@ -179,7 +179,7 @@ df<-df[which(df$clusters!=0),]
 
 my_comparisons <- list(
   c("1", "2"), c("1", "3"), c("1","4"), c("1","5"), c("2", "3"), c("2","4"), c("2","5"), c("3","4"), c("3","5"), c("4","5"))
-symnum.args <- list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, Inf), symbols = c("****", "***", "**", "*", "ns")).
+symnum.args <- list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, Inf), symbols = c("****", "***", "**", "*", "ns"))
 
 ggplot(df, aes(x = clusters, y = log2(libsizes+1), fill = clusters)) +
   geom_violin(trim = FALSE, color = "black") +
@@ -250,7 +250,7 @@ rna_libsizes1<-rna_libsizes[match(spot_sums1$cleaned_spots,names(rna_libsizes))]
 #Calculate + Plot Correlation
 plot_df <- data.frame(
   atac = log2(as.numeric(spot_sums1$Freq) + 1),
-  rna = log2(as.numeric(rna_libsizes1$freq) + 1)
+  rna = log2(as.numeric(rna_libsizes1) + 1)
 )
 
 # Fit model between ATAC & RNA library size
@@ -328,9 +328,10 @@ metadata$cluster_value <- mapply(
 
 
 #read in ATAC-seq dataset
-atac_df<-read.csv(gzfile("HumanMelanomaMultiome_atac.csv.gz"), row.names = 1)
+atac_df<-read.csv(gzfile("C:/Users/kelly/R/spatial_atac_software/data/SPATE/Data/slide_tags/raw/HumanMelanomaMultiome_atac.csv.gz"), row.names = 1)
 spot_sums<-data.frame(name=colnames(atac_df),Freq=colSums(atac_df))
 spot_sums$name<-substr(spot_sums$name,1,nchar(spot_sums$name)-2)
+spot_sums1<-spot_sums
 colnames(atac_df)<-substr(colnames(atac_df),1,nchar(colnames(atac_df))-2)
 char_before_dash <- regexpr("-", rownames(atac_df)) - 1
 keep<-which(char_before_dash<=5)
@@ -338,27 +339,33 @@ atac_df<-atac_df[keep,]
 keep<-which(rowSums(atac_df)>0)
 atac_df<-atac_df[keep,]
 
+metadata$libsizes<-spot_sums$Freq
+
 #Visualize library size
 ggplot(metadata, aes(x = as.numeric(X), y = as.numeric(Y), fill = as.numeric(libsizes))) +
   geom_tile(width = 100, height = 100) +
   coord_fixed() +
-  scale_fill_manual(color = colorRampPalette(c("navy", "white", "firebrick3"))(5)) +  
-  xlim(0, 6000) +
+  scale_fill_gradientn(colors = c(
+    "#2166AC", "#4393C3", "#92C5DE", "#D1E5F0", "#F7F7F7", 
+    "#FDDBC7", "#F4A582", "#D6604D", "#B2182B"
+  ))+xlim(0, 6000) +
   ylim(0, 6000) +
   theme_void() +
-  guides(fill = guide_legend(title = NULL))+theme(
+  guides(fill = guide_legend(title = NULL)) +
+  theme(
     legend.text = element_text(size = 45)
   )
 
 #Correlation with RNA
 #read in RNA
 library(Matrix)
-rna_matrix_raw<-readMM("slide_tags/raw/HumanMelanomaMultiome_rna/matrix.mtx/matrix.mtx")
-files <- list.files(path = "slide_tags/raw/HumanMelanomaMultiome_rna/barcodes.tsv/", full.names = TRUE)
+rna_matrix_raw<-readMM("C:/Users/kelly/R/spatial_atac_software/data/SPATE/Data/slide_tags/raw/HumanMelanomaMultiome_rna/matrix.mtx/matrix.mtx")
+files <- list.files(path = "C:/Users/kelly/R/spatial_atac_software/data/SPATE/Data/slide_tags/raw/HumanMelanomaMultiome_rna/barcodes.tsv/", full.names = TRUE)
 files<-substr(files,nchar(files)-17,nchar(files))
-files<-substr(files,3,nchar(files))
+files<-substr(files,1,nchar(files)-2)
 colnames(rna_matrix_raw)<-files
 rna_libsizes_raw<-data.frame(name=colnames(rna_matrix_raw),freq=colSums(rna_matrix_raw))
 rna_libsizes1<-rna_libsizes_raw[which(rownames(rna_libsizes_raw)%in%spot_sums$name),]
 rna_libsizes1<-rna_libsizes1[match(spot_sums$name,rownames(rna_libsizes1)),]
+rna_libsizes1<-as.numeric(rna_libsizes1$freq)
 #####PROCEED WITH spatial-ATAC-RNA-seq & spatial-MUX-seq code to produce correlation between ATAC and RNA libsizes#####
