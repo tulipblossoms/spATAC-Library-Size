@@ -30,3 +30,5 @@ Library size has been typically regarded as a technical confounder in spATAC-seq
 3. Determine which promoters are differential promoters using a Wilcoxon test and false discovery rate. Determine which differential promoters are shared between raw vs. normalized conditions.
 4. Calculate log2 fold change for each peak between the different clusters. Determine % of differential promoters raw vs. normalized conditions whose trends shift (i.e. significantly upregulated to significantly downregulated). 
 5. Includes code to produce Figure 4.
+
+For all files, an example spatial-ATAC-RNA-seq dataset (mouse embryo) is used to demonstrate analyses and the figures produced. Slide-tags analyses is also included separately as the dataset format differs from the spatial-ATAC-RNA-seq and spatial-Mux-seq datasets.
