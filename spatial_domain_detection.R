@@ -5,20 +5,23 @@ library(data.table)
 library(pheatmap)
 library(ggplot2)
 
-#Clean metadata & assign ground truth clusters
-spot_sums<-spot_sums[match(metadata$ACAAGCTAAACGTGAT,spot_sums$cleaned_spots),]
+#Clean metadata & assign ground truth clusters for spatial-ATAC-RNA and spatial-Mux-seq#
 
-residual_matrix<-matrix(NA,50,50)
+colnames(metadata)<-c("spot_id","label","x","y","pixelx","pixely")
+spot_sums<-as.data.frame(table(cleaned_spots))
+spot_sums<-spot_sums[match(metadata$spot_id,spot_sums$cleaned_spots),]
+
+residual_matrix<-matrix(0,50,50)
 for (i in seq_len(nrow(metadata))) {
-  r <- as.numeric(metadata$row[i])+1
-  c <- as.numeric(metadata$col[i])+1
+  r <- as.numeric(metadata$x[i])+1
+  c <- as.numeric(metadata$y[i])+1
   residual_matrix[r,c] <- i
 }
 
 residual_matrix<-residual_matrix[,ncol(residual_matrix):1]
 inds_order<-as.vector(t(residual_matrix))
 df_mapping<-data.table(spot_names=spot_sums$cleaned_spots[inds_order],cluster=clusters)
-df_mapping<-df_mapping[match(metadata$ACAAGCTAAACGTGAT,df_mapping$spot_names),]
+df_mapping<-df_mapping[match(metadata$spot_id,df_mapping$spot_names),]
 
 #filtering out background
 metadata$cluster_value<-df_mapping$cluster
@@ -26,22 +29,24 @@ metadata<-metadata[which(metadata$cluster_value!=0),]
 spot_sums<-spot_sums[which(spot_sums$cleaned_spots%in%metadata$spot_id),]
 
 #making spot metadata
-metadata <- metadata[colnames(peak_matrix), ]
 metadata$pixelx<-as.numeric(metadata$pixelx)
 metadata$pixely<-as.numeric(metadata$pixely)
 metadata_xy<-metadata[,cbind("pixelx","pixely")]
 metadata_xy$pixelx<-as.numeric(metadata_xy$pixelx)
 metadata_xy$pixely<-as.numeric(metadata_xy$pixely)
+rownames(metadata_xy)<-metadata$spot_id
 xy <- list(metadata_xy)
 
 
 #preparing data (raw, norm, tfidf)
+peak_matrix<-readRDS("spatial_cor_data/mouse_embryo_spatial_domain_promoter_matrix.rds")
+peak_matrix<-peak_matrix[,match(metadata$spot_id,colnames(peak_matrix))]
 promoter_matrix_log<-log2(peak_matrix+1) #log transform
 promoter_matrix_normalized<-sweep(peak_matrix,2,spot_sums$Freq,"/")
 promoter_matrix_normalized_log<-promoter_matrix_normalized*10000
 promoter_matrix_normalized_log<-log2(promoter_matrix_normalized_log+1) #log transform normalized peaks
 
-seurat_object <- CreateSeuratObject(counts = promoter_matrix, assay = "peaks")
+seurat_object <- CreateSeuratObject(counts = peak_matrix, assay = "peaks")
 seurat_object <- RunTFIDF(seurat_object, assay = "peaks",method=1) #default method
 tfidf_matrix <- GetAssayData(seurat_object, layer = "data", assay = "peaks")
 tfidf_matrix<-as.matrix(tfidf_matrix)
@@ -81,7 +86,7 @@ spatial_domains<-(spatial_domains)[,ncol(spatial_domains):1]
 pheatmap(spatial_domains,cluster_rows=FALSE,cluster_cols=FALSE,color=c("red","blue","#32CD32","purple","orange"),main=paste0("ARI: ",round(ARI(metadata$orig, metadata$cluster_value),4)),fontsize=32)
 
 
-#specificially for slidetags
+#specificially for slidetags (clusters assigned in image_clustering.R)
 ggplot(metadata, aes(x = as.numeric(X), y = as.numeric(Y), color = as.factor(orig))) + #may also replace orig with norm and tfidf
   geom_point(size = 1.5) +
   coord_fixed() +
