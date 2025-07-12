@@ -11,10 +11,9 @@ library(Signac)
 ###make promoter matrices for either human or mouse
 raw_mouse_df <- import("C:/Users/kelly/R/spatial_atac_software/data/mm10.refGene.gtf.gz") ##downloaded from UCSC Genome Browser Database
 raw_mouse_df<-as.data.frame(raw_mouse_df)
-colnames(raw_mouse_df)[c(1,4,5,7,9)]<-c("seqname","start","end","strand","name")
 
-upstream<-2000 ##may also change to 5000 or adjust as needed
-downstream<-2000
+upstream<-5000 ##may also change to 2000 or adjust as needed
+downstream<-5000
 promoters <- raw_mouse_df %>%
   mutate(
     tss = ifelse(strand == "+", start, end),
@@ -22,7 +21,7 @@ promoters <- raw_mouse_df %>%
     promoter_end = ifelse(strand == "+", tss + downstream, tss + upstream),
     promoter_start = pmax(promoter_start, 0)  # ensure non-negative
   ) %>%
-  dplyr::select(chrom = seqnames, start = promoter_start, end = promoter_end, gene = name, strand)
+  dplyr::select(chrom = seqnames, start = promoter_start, end = promoter_end, gene = gene_name, strand)
 
 promoters$chrom<-as.character(promoters$chrom)
 promoters<-promoters[which(nchar(promoters$chrom)<=5),]
@@ -55,7 +54,7 @@ order_regions<-function(data_df){
 }
 
 ordered_promoters<-order_regions(promoters)
-cleaned_promoters<-promoters[!duplicated(ordered_promoters[,c("seqnames","start","end")]),]
+cleaned_promoters<-ordered_promoters[!duplicated(ordered_promoters[,c("seqnames","start","end")]),]
 cleaned_promoters<-cleaned_promoters[!duplicated(cleaned_promoters[,c("gene")]),]
 
 ##common peaks/genes
@@ -66,7 +65,6 @@ rna_spatial_exp_cleaned<-rna_spatial_exp_cleaned[match(cleaned_promoters$gene,ro
 
 #MAKE PROMOTER BY SPOT MATRIX (PEAK MATRIX)
 cells<-paste0(as.character(spot_sums$cleaned_spots),"-1")
-cells<-as.character(spot_sums$cleaned_spots)
 fragments<-CreateFragmentObject(path="GSM6801813_ME13_50um_fragments.tsv.gz",cells=cells)
 gr.peaks <- makeGRangesFromDataFrame(cleaned_promoters)
 peak_matrix <- suppressWarnings(FeatureMatrix(
@@ -81,14 +79,17 @@ keep<-which(paste0(cleaned_promoters$seqnames,"-",cleaned_promoters$start,"-",cl
 cleaned_promoters<-cleaned_promoters[keep,]
 rna_spatial_exp_cleaned<-rna_spatial_exp_cleaned[keep,]
 peak_matrix<-peak_matrix[,match(colnames(rna_spatial_exp_cleaned),colnames(peak_matrix))]
-keep<-which(rowSums(peak_matrix)>0)
+keep<-which(rowSums(peak_matrix)>0&rowSums(rna_spatial_exp_cleaned)>0&!duplicated(rownames(peak_matrix)))
 peak_matrix<-peak_matrix[keep,]
 rna_spatial_exp_cleaned<-rna_spatial_exp_cleaned[keep,]
 cleaned_promoters<-cleaned_promoters[keep,]
 
 ##Prepare Raw vs. Normalized + TF-IDF peak matrices & Normalized RNA matrix
+spot_sums<-spot_sums[match(colnames(peak_matrix),spot_sums$cleaned_spots),]
+rna_libsizes<-rna_libsizes[match(spot_sums$cleaned_spots,names(rna_libsizes))]
 div_lib_size_matrix<-sweep(peak_matrix,2,spot_sums$Freq,"/")
 div_lib_size_matrix<-as.matrix(div_lib_size_matrix)
+rna_spatial_exp_cleaned<-rna_spatial_exp_cleaned[,match(names(rna_libsizes),colnames(rna_spatial_exp_cleaned))]
 rna_div_lib_size_matrix<-sweep(rna_spatial_exp_cleaned,2,rna_libsizes,"/")
 rna_div_lib_size_matrix<-as.matrix(rna_div_lib_size_matrix)
 seurat_object <- CreateSeuratObject(counts = peak_matrix, assay = "peaks")
