@@ -244,13 +244,13 @@ ggplot(plot_df, aes(x = quantile, y = percent, fill = clusters)) +
 #Calculate library sizes + match with ATAC datasets
 rna_libsizes<-colSums(rna_spatial_exp)
 names(rna_libsizes)<-colnames(rna_spatial_exp)
-spot_sums1<-spot_sums[which(spot_sums$cleaned_spots%in%names(rna_libsizes)),]
-rna_libsizes1<-rna_libsizes[match(spot_sums1$cleaned_spots,names(rna_libsizes))]
+spot_sums<-spot_sums[which(spot_sums$cleaned_spots%in%names(rna_libsizes)),]
+rna_libsizes<-rna_libsizes[match(spot_sums$cleaned_spots,names(rna_libsizes))]
 
 #Calculate + Plot Correlation
 plot_df <- data.frame(
-  atac = log2(as.numeric(spot_sums1$Freq) + 1),
-  rna = log2(as.numeric(rna_libsizes1) + 1)
+  atac = log2(as.numeric(spot_sums$Freq) + 1),
+  rna = log2(as.numeric(rna_libsizes) + 1)
 )
 
 # Fit model between ATAC & RNA library size
