@@ -3,7 +3,10 @@ library(data.table)
 library(dplyr)
 library(ggplot2)
 library(ggvenn)
+library(pheatmap)
 library(progress)
+library(Seurat)
+library(Signac)
 
 #read in and assign clusters for human brain
 cluster_assignments<-read.csv("cluster/hippocampus.csv")
@@ -208,7 +211,7 @@ spot_sums<-spot_sums[match(metadata$ACAAGCTAAACGTGAT,spot_sums$cleaned_spots),]
 for (i in seq_len(nrow(metadata))) {
   r <- as.numeric(metadata$row[i])+1
   c <- as.numeric(metadata$col[i])+1
-  lib_matrix[r,c] <- peak_matrix[7832,i]
+  lib_matrix[r,c] <- peak_matrix[1042,i] #may also change to div_lib_size_matrix or tfidf_matrix to view
 }
 lib_matrix<-lib_matrix[,ncol(lib_matrix):1]
 pheatmap(lib_matrix,cluster_cols=FALSE,cluster_rows=FALSE,fontsize=32)
@@ -240,3 +243,4 @@ ggplot(metadata, aes(x = X, y = Y, color = orig, size = orig)) +
     legend.title = element_text(size = 36),
     legend.text = element_text(size = 36)
   )
+
