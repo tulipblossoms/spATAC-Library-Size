@@ -1,6 +1,6 @@
 # spATAC-Library-Size
 ## Overview
-Library size has been typically regarded as a technical confounder in spATAC-seq. However, analyses indicated that library size is correlated with biology and that traditional normalization methods do not improve/may worsen the performance of downstream analyses tasks like spatial domain detection, and change biological trends in differential promoter activity.
+Library size has been typically regarded as a technical confounder in spATAC-seq. However, analyses indicated that library size is correlated with biology in spATAC-seq data and that traditional normalization methods do not improve/may worsen the performance of downstream analyses tasks like spatial domain detection, and change biological trends in differential promoter activity.
 
 
 # Description of each File 
@@ -12,8 +12,8 @@ Library size has been typically regarded as a technical confounder in spATAC-seq
 
 ## promoter_matrix_rna_cor.R
 1. Creates a list of promoter regions and generates a peak by spot matrix.
-2. Aligns promoter regions with RNA gene expression matrix. and calculates row-wise correlation.
-3. Creates a divide by library size normalized and TF-IDF corrected matrix for the peak by spot table and a normalized matrix for the RNA matrix.
+2. Aligns promoter regions with RNA gene expression matrix and calculates row-wise correlation.
+3. Creates a divide-by-library-size-normalized and TF-IDF corrected matrix for the peak by spot table and a normalized matrix for the RNA matrix.
 4. Calculate row-wise correlation between promoters and RNA gene expression.
 5. Includes code to produce Figure 2.
 
