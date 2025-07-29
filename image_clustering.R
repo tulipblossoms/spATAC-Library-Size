@@ -303,7 +303,7 @@ metadata$row_img <- round(y_scaled)
 center_row <- nrow(cluster_matrix) / 2
 center_col <- ncol(cluster_matrix) / 2
 
-angle_deg <- 38
+angle_deg <- 20
 slope <- tan(angle_deg * pi / 180)
 intercept <- center_row - slope * center_col
 
